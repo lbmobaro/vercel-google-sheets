@@ -9,6 +9,34 @@ const API_TOKEN = process.env.API_TOKEN; // Assume this is the x-api-key value
 
 const credentials = JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS, 'base64').toString('utf-8'));
 
+// Mapping of element IDs to car names and sides
+const carNames = {
+  'elements/2691957-C': 'RIGHT SIDE Pilot Car',
+  'elements/2691958-C': 'RIGHT SIDE Car #1',
+  'elements/2691959-C': 'RIGHT SIDE Car #2',
+  'elements/2691960-C': 'RIGHT SIDE Car #3',
+  'elements/2691961-C': 'RIGHT SIDE Car #4',
+  'elements/2691962-C': 'RIGHT SIDE Car #5',
+  'elements/2691963-C': 'RIGHT SIDE Car #6',
+  'elements/2691964-C': 'RIGHT SIDE Car #7',
+  'elements/2691965-C': 'RIGHT SIDE Car #8',
+  'elements/2692011-C': 'LEFT SIDE Pilot Car',
+  'elements/2692012-C': 'LEFT SIDE Car #1',
+  'elements/2692013-C': 'LEFT SIDE Car #2',
+  'elements/2692014-C': 'LEFT SIDE Car #3',
+  'elements/2692015-C': 'LEFT SIDE Car #4',
+  'elements/2692016-C': 'LEFT SIDE Car #5',
+  'elements/2692017-C': 'LEFT SIDE Car #6',
+  'elements/2692018-C': 'LEFT SIDE Car #7',
+  'elements/2692019-C': 'LEFT SIDE Car #8',
+};
+
+const adjustmentValues = {
+  '-1': 'Loosened',
+  '0': 'Unadjusted',
+  '1': 'Tightened'
+};
+
 async function getGoogleSheetClient() {
   const auth = new google.auth.GoogleAuth({
     credentials,
@@ -16,6 +44,7 @@ async function getGoogleSheetClient() {
   });
 
   const authClient = await auth.getClient();
+  console.log('Authenticated with service account:', credentials.client_email); // Log the service account email
   return google.sheets({ version: 'v4', auth: authClient });
 }
 
@@ -50,8 +79,9 @@ function parseData(data) {
         item.values.forEach(value => {
           if (value.answers) {
             adjustments.push({
-              question: value.question,
-              answer: parseInt(value.answers[0], 10), // Ensure the answer is treated as an integer
+              carName: carNames[value.question],
+              adjustment: adjustmentValues[value.answers[0]],
+              time: value.answered
             });
           }
         });
@@ -60,6 +90,38 @@ function parseData(data) {
   }
   console.log('Parsed data:', adjustments);
   return adjustments;
+}
+
+async function createSheetIfNotExists(sheets, sheetName) {
+  try {
+    const sheetResponse = await sheets.spreadsheets.get({
+      spreadsheetId: SHEET_ID,
+    });
+    const sheetExists = sheetResponse.data.sheets.some(sheet => sheet.properties.title === sheetName);
+
+    if (!sheetExists) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SHEET_ID,
+        resource: {
+          requests: [
+            {
+              addSheet: {
+                properties: {
+                  title: sheetName,
+                },
+              },
+            },
+          ],
+        },
+      });
+      console.log(`Sheet "${sheetName}" created successfully`);
+    } else {
+      console.log(`Sheet "${sheetName}" already exists`);
+    }
+  } catch (error) {
+    console.error(`Error checking/creating sheet "${sheetName}":`, error);
+    throw new Error(`Error checking/creating sheet "${sheetName}"`);
+  }
 }
 
 async function createDailySheet(sheets, date) {
@@ -86,9 +148,11 @@ async function createDailySheet(sheets, date) {
 }
 
 async function updateDailySheet(sheets, date, adjustments) {
-  const range = `${date}!A1`;
+  const rows = adjustments.map(adjustment => [adjustment.carName, adjustment.adjustment, adjustment.time]);
 
-  const rows = adjustments.map(adjustment => [adjustment.question, adjustment.answer]);
+  const range = `${date}!A1:C${rows.length + 1}`;
+  const header = [['Car Name', 'Adjustment', 'Time']];
+  const values = header.concat(rows);
 
   try {
     await sheets.spreadsheets.values.append({
@@ -96,7 +160,7 @@ async function updateDailySheet(sheets, date, adjustments) {
       range,
       valueInputOption: 'RAW',
       resource: {
-        values: rows,
+        values,
       },
     });
     console.log(`Sheet for ${date} updated successfully`);
@@ -107,7 +171,10 @@ async function updateDailySheet(sheets, date, adjustments) {
 }
 
 async function updateTotalAdjustments(sheets, adjustments) {
-  const totalRange = 'Total Adjustments!A1:B';
+  const sheetName = 'Total Adjustments';
+  await createSheetIfNotExists(sheets, sheetName);
+
+  const totalRange = `${sheetName}!A1:B`;
   
   try {
     // Read current totals
@@ -121,8 +188,8 @@ async function updateTotalAdjustments(sheets, adjustments) {
 
     // Update totals with today's adjustments
     adjustments.forEach(adjustment => {
-      const currentTotal = totalsMap.get(adjustment.question) || 0;
-      totalsMap.set(adjustment.question, currentTotal + adjustment.answer);
+      const currentTotal = totalsMap.get(adjustment.carName) || 0;
+      totalsMap.set(adjustment.carName, currentTotal + (adjustment.adjustment === 'Tightened' ? 1 : adjustment.adjustment === 'Loosened' ? -1 : 0));
     });
 
     // Prepare the updated totals data
