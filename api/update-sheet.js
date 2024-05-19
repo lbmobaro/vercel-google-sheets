@@ -44,14 +44,20 @@ async function fetchData() {
 
 function parseData(data) {
   const adjustments = [];
-  data.values.forEach(value => {
-    if (value.answers) {
-      adjustments.push({
-        question: value.question,
-        answer: parseInt(value.answers[0], 10), // Ensure the answer is treated as an integer
-      });
-    }
-  });
+  if (data.items && data.items.length > 0) {
+    data.items.forEach(item => {
+      if (item.values && item.values.length > 0) {
+        item.values.forEach(value => {
+          if (value.answers) {
+            adjustments.push({
+              question: value.question,
+              answer: parseInt(value.answers[0], 10), // Ensure the answer is treated as an integer
+            });
+          }
+        });
+      }
+    });
+  }
   console.log('Parsed data:', adjustments);
   return adjustments;
 }
