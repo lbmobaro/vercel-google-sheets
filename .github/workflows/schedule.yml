@@ -1,0 +1,12 @@
+name: Schedule API Call
+
+on:
+  schedule:
+    - cron: '*/1 * * * *'  # This will run every minute
+
+jobs:
+  callApi:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Vercel API
+        run: curl -X GET "https://your-vercel-project.vercel.app/api/update-sheet"
