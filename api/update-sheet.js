@@ -5,7 +5,7 @@ const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 const SHEET_ID = process.env.SHEET_ID;
 const API_BASE_URL = process.env.API_BASE_URL;
 const API_CHECKLISTS = process.env.API_CHECKLISTS;
-const API_TOKEN = process.env.API_TOKEN;
+const API_TOKEN = process.env.API_TOKEN; // Assume this is the x-api-key value
 
 const credentials = JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS, 'base64').toString('utf-8'));
 
@@ -26,16 +26,18 @@ async function fetchData() {
 
   const apiUrl = `${API_BASE_URL}?Checklists=${API_CHECKLISTS}&AnsweredBefore=${encodeURIComponent(answeredBefore)}&AnsweredAfter=${encodeURIComponent(answeredAfter)}`;
 
+  console.log('Fetching data from API URL:', apiUrl);
+
   try {
     const response = await axios.get(apiUrl, {
       headers: {
-        'Authorization': `Bearer ${API_TOKEN}`,
+        'x-api-key': API_TOKEN,
       },
     });
     console.log('Data fetched successfully:', response.data);
     return response.data;
   } catch (error) {
-    console.error('Error fetching data:', error);
+    console.error('Error fetching data:', error.response ? error.response.data : error.message);
     throw new Error('Error fetching data');
   }
 }
