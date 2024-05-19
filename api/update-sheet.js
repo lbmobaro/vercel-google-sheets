@@ -118,6 +118,7 @@ async function createSheetIfNotExists(sheets, sheetName) {
     } else {
       console.log(`Sheet "${sheetName}" already exists`);
     }
+    return !sheetExists;
   } catch (error) {
     console.error(`Error checking/creating sheet "${sheetName}":`, error);
     throw new Error(`Error checking/creating sheet "${sheetName}"`);
@@ -125,33 +126,16 @@ async function createSheetIfNotExists(sheets, sheetName) {
 }
 
 async function createDailySheet(sheets, date) {
-  try {
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: SHEET_ID,
-      resource: {
-        requests: [
-          {
-            addSheet: {
-              properties: {
-                title: date,
-              },
-            },
-          },
-        ],
-      },
-    });
-    console.log(`Sheet for ${date} created successfully`);
-  } catch (error) {
-    console.error(`Error creating sheet for ${date}:`, error);
-    throw new Error(`Error creating sheet for ${date}`);
-  }
+  const isNewSheet = await createSheetIfNotExists(sheets, date);
+  return isNewSheet;
 }
 
-async function updateDailySheet(sheets, date, adjustments) {
+async function updateDailySheet(sheets, date, adjustments, isNewSheet) {
   const rows = adjustments.map(adjustment => [adjustment.carName, adjustment.adjustment, adjustment.time]);
 
-  const range = `${date}!A1:C${rows.length + 1}`;
-  const header = [['Car Name', 'Adjustment', 'Time']];
+  const startRow = isNewSheet ? 1 : await getLastRowNumber(sheets, date) + 1;
+  const range = `${date}!A${startRow}:C${startRow + rows.length - 1}`;
+  const header = isNewSheet ? [['Car Name', 'Adjustment', 'Time']] : [];
   const values = header.concat(rows);
 
   try {
@@ -167,6 +151,20 @@ async function updateDailySheet(sheets, date, adjustments) {
   } catch (error) {
     console.error(`Error updating sheet for ${date}:`, error);
     throw new Error(`Error updating sheet for ${date}`);
+  }
+}
+
+async function getLastRowNumber(sheets, sheetName) {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${sheetName}!A:A`,
+    });
+    const numRows = response.data.values ? response.data.values.length : 0;
+    return numRows;
+  } catch (error) {
+    console.error(`Error getting last row number for sheet "${sheetName}":`, error);
+    throw new Error(`Error getting last row number for sheet "${sheetName}"`);
   }
 }
 
@@ -220,8 +218,8 @@ module.exports = async (req, res) => {
     
     const date = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
 
-    await createDailySheet(sheets, date);
-    await updateDailySheet(sheets, date, adjustments);
+    const isNewSheet = await createDailySheet(sheets, date);
+    await updateDailySheet(sheets, date, adjustments, isNewSheet);
     await updateTotalAdjustments(sheets, adjustments);
 
     console.log('All operations completed successfully');
