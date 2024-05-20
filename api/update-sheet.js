@@ -49,15 +49,18 @@ async function getGoogleSheetClient() {
   });
 
   const authClient = await auth.getClient();
+  console.log('Authenticated with service account:', credentials.client_email);
   return google.sheets({ version: 'v4', auth: authClient });
 }
 
 async function fetchData() {
   const now = new Date();
   const answeredBefore = now.toISOString();
-  const answeredAfter = new Date(now.getTime() - 60000).toISOString();
+  const answeredAfter = new Date(now.getTime() - 60000).toISOString(); // 1 minute earlier
 
   const apiUrl = `${API_BASE_URL}/results?Checklists=${API_CHECKLISTS}&AnsweredBefore=${encodeURIComponent(answeredBefore)}&AnsweredAfter=${encodeURIComponent(answeredAfter)}`;
+
+  console.log('Fetching data from API URL:', apiUrl);
 
   try {
     const response = await axios.get(apiUrl, {
@@ -65,14 +68,18 @@ async function fetchData() {
         'x-api-key': API_TOKEN,
       },
     });
+    console.log('Data fetched successfully:', response.data);
     return response.data;
   } catch (error) {
+    console.error('Error fetching data:', error.response ? error.response.data : error.message);
     throw new Error('Error fetching data');
   }
 }
 
 async function fetchUsers() {
   const apiUrl = `${API_BASE_URL}/usergroups/${API_USER_GROUP}`;
+
+  console.log('Fetching user data from API URL:', apiUrl);
 
   try {
     const response = await axios.get(apiUrl, {
@@ -84,8 +91,10 @@ async function fetchUsers() {
       acc[user.id] = user.name;
       return acc;
     }, {});
+    console.log('User data fetched successfully:', users);
     return users;
   } catch (error) {
+    console.error('Error fetching user data:', error.response ? error.response.data : error.message);
     throw new Error('Error fetching user data');
   }
 }
@@ -125,6 +134,7 @@ function parseData(data, userMap) {
       }
     });
   }
+  console.log('Parsed data:', adjustments);
   return adjustments;
 }
 
@@ -158,22 +168,8 @@ async function createSheetIfNotExists(sheets, sheetName) {
                 values: [
                   { userEnteredValue: { stringValue: "Train" }, userEnteredFormat: { textFormat: { bold: true } } },
                   { userEnteredValue: { stringValue: "Car" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Cycle Time 1" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Adjustment 1" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Cycle Time 2" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Adjustment 2" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Cycle Time 3" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Adjustment 3" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Cycle Time 4" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Adjustment 4" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Cycle Time 5" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Adjustment 5" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Cycle Time 6" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Adjustment 6" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Cycle Time 7" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Adjustment 7" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Cycle Time 8" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Adjustment 8" }, userEnteredFormat: { textFormat: { bold: true } } },
+                  ...Array.from({ length: 8 }, (_, i) => ({ userEnteredValue: { stringValue: `Cycle Time ${i + 1}` }, userEnteredFormat: { textFormat: { bold: true } } })),
+                  ...Array.from({ length: 8 }, (_, i) => ({ userEnteredValue: { stringValue: `Adjustment ${i + 1}` }, userEnteredFormat: { textFormat: { bold: true } } })),
                 ],
               },
             ],
@@ -186,51 +182,112 @@ async function createSheetIfNotExists(sheets, sheetName) {
         spreadsheetId: SHEET_ID,
         resource: { requests },
       });
+
+      console.log(`Sheet "${sheetName}" created successfully`);
+    } else {
+      console.log(`Sheet "${sheetName}" already exists`);
     }
     return !sheetExists;
   } catch (error) {
+    console.error(`Error checking/creating sheet "${sheetName}":`, error);
     throw new Error(`Error checking/creating sheet "${sheetName}"`);
   }
 }
 
-async function updateDailySheet(sheets, date, adjustments, isNewSheet) {
-  const rows = adjustments.map(adjustment => [adjustment.train, adjustment.carName, adjustment.adjustment, adjustment.time, adjustment.user]);
+async function createDailySheet(sheets, date) {
+  const isNewSheet = await createSheetIfNotExists(sheets, date);
+  if (isNewSheet) {
+    const sheetResponse = await sheets.spreadsheets.get({
+      spreadsheetId: SHEET_ID,
+    });
+    const sheetId = sheetResponse.data.sheets.find(sheet => sheet.properties.title === date).properties.sheetId;
 
+    const requests = [
+      {
+        updateCells: {
+          range: {
+            sheetId,
+            startRowIndex: 0,
+            startColumnIndex: 0,
+            endRowIndex: 1,
+            endColumnIndex: 19,
+          },
+          rows: [
+            {
+              values: [
+                { userEnteredValue: { stringValue: "Train" }, userEnteredFormat: { textFormat: { bold: true } } },
+                { userEnteredValue: { stringValue: "Car" }, userEnteredFormat: { textFormat: { bold: true } } },
+                ...Array.from({ length: 8 }, (_, i) => ({ userEnteredValue: { stringValue: `Cycle Time ${i + 1}` }, userEnteredFormat: { textFormat: { bold: true } } })),
+                ...Array.from({ length: 8 }, (_, i) => ({ userEnteredValue: { stringValue: `Adjustment ${i + 1}` }, userEnteredFormat: { textFormat: { bold: true } } })),
+              ],
+            },
+          ],
+          fields: "userEnteredValue,userEnteredFormat.textFormat.bold",
+        },
+      },
+      {
+        addFilterView: {
+          filter: {
+            title: "Filter",
+            range: {
+              sheetId,
+              startRowIndex: 0,
+              startColumnIndex: 0,
+              endRowIndex: 1,
+              endColumnIndex: 19,
+            },
+          },
+        },
+      },
+    ];
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SHEET_ID,
+      resource: { requests },
+    });
+
+    console.log(`Sheet "${date}" formatted successfully`);
+  }
+  return isNewSheet;
+}
+
+async function updateDailySheet(sheets, date, adjustments, isNewSheet) {
   const sheetResponse = await sheets.spreadsheets.get({
     spreadsheetId: SHEET_ID,
   });
   const sheet = sheetResponse.data.sheets.find(sheet => sheet.properties.title === date);
 
-  const requests = rows.map(row => {
-    const train = row[0];
-    const carName = row[1];
-    const adjustment = row[2];
-    const time = row[3];
-    const user = row[4];
+  const requests = adjustments.map(adjustment => {
+    const train = adjustment.train;
+    const carName = adjustment.carName;
+    const adjustmentString = `${adjustment.adjustment} on ${adjustment.time} by ${adjustment.user}`;
 
-    const col = sheet.data[0].rowData[0].values.findIndex(cell => cell.userEnteredValue && cell.userEnteredValue.stringValue.startsWith('Adjustment'));
-    const rowIndex = sheet.data[0].rowData.findIndex(rowData => rowData.values[0].userEnteredValue.stringValue === train && rowData.values[1].userEnteredValue.stringValue === carName);
-
-    if (rowIndex !== -1 && col !== -1) {
-      return {
-        updateCells: {
-          range: {
-            sheetId: sheet.properties.sheetId,
-            startRowIndex: rowIndex,
-            startColumnIndex: col,
-            endRowIndex: rowIndex + 1,
-            endColumnIndex: col + 1,
-          },
-          rows: [
-            {
-              values: [
-                { userEnteredValue: { stringValue: `${adjustment} on ${time} by ${user}` } },
-              ],
+    const carRowIndex = sheet.data[0].rowData.findIndex(rowData => rowData.values[0].userEnteredValue.stringValue === train && rowData.values[1].userEnteredValue.stringValue === carName);
+    
+    if (carRowIndex !== -1) {
+      const colIndex = sheet.data[0].rowData[carRowIndex].values.findIndex((cell, idx) => idx > 1 && !cell.userEnteredValue);
+      
+      if (colIndex !== -1) {
+        return {
+          updateCells: {
+            range: {
+              sheetId: sheet.properties.sheetId,
+              startRowIndex: carRowIndex,
+              startColumnIndex: colIndex,
+              endRowIndex: carRowIndex + 1,
+              endColumnIndex: colIndex + 1,
             },
-          ],
-          fields: "userEnteredValue",
-        },
-      };
+            rows: [
+              {
+                values: [
+                  { userEnteredValue: { stringValue: adjustmentString } },
+                ],
+              },
+            ],
+            fields: "userEnteredValue",
+          },
+        };
+      }
     }
   }).filter(Boolean);
 
@@ -239,65 +296,30 @@ async function updateDailySheet(sheets, date, adjustments, isNewSheet) {
       spreadsheetId: SHEET_ID,
       resource: { requests },
     });
+    console.log(`Sheet for ${date} updated successfully`);
   } catch (error) {
+    console.error(`Error updating sheet for ${date}:`, error);
     throw new Error(`Error updating sheet for ${date}`);
   }
 }
 
-async function updateTotalAdjustments(sheets, adjustments) {
-  const sheetName = 'Total Adjustments';
-  await createSheetIfNotExists(sheets, sheetName);
-
-  const totalRange = `${sheetName}!A1:B`;
-
+module.exports = async (req, res) => {
   try {
-    const currentTotalsResponse = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
-      range: totalRange,
-    });
-
-    const currentTotals = currentTotalsResponse.data.values || [];
-    const totalsMap = new Map(currentTotals.map(row => [row[0], parseInt(row[1], 10)]));
-
-    adjustments.forEach(adjustment => {
-      const currentTotal = totalsMap.get(adjustment.carName) || 0;
-      totalsMap.set(adjustment.carName, currentTotal + (adjustment.adjustment === 'Tightened' ? 1 : adjustment.adjustment === 'Loosened' ? -1 : 0));
-    });
-
-    const updatedTotals = Array.from(totalsMap.entries());
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SHEET_ID,
-      range: totalRange,
-      valueInputOption: 'RAW',
-      resource: {
-        values: updatedTotals,
-      },
-    });
-  } catch (error) {
-    throw new Error('Error updating total adjustments');
-  }
-}
-
-export default async function handler(req, res) {
-  if (req.headers.get('Authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
-    return res.status(401).end('Unauthorized');
-  }
-
-  try {
+    console.log('Request received');
     const data = await fetchData();
     const userMap = await fetchUsers();
     const adjustments = parseData(data, userMap);
     const sheets = await getGoogleSheetClient();
-
-    const date = new Date().toISOString().split('T')[0];
+    
+    const date = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
 
     const isNewSheet = await createDailySheet(sheets, date);
     await updateDailySheet(sheets, date, adjustments, isNewSheet);
-    await updateTotalAdjustments(sheets, adjustments);
 
+    console.log('All operations completed successfully');
     res.status(200).json({ message: 'Success' });
   } catch (error) {
+    console.error('Internal Server Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };
