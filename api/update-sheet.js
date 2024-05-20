@@ -239,22 +239,30 @@ async function updateDailySheet(sheets, date, adjustments, isNewSheet) {
   });
   const sheet = sheetResponse.data.sheets.find(sheet => sheet.properties.title === date);
 
+  if (!sheet || !sheet.data || !sheet.data[0] || !sheet.data[0].rowData) {
+    throw new Error('Sheet data is not available or improperly formatted.');
+  }
+
   const requests = adjustments.map(adjustment => {
     const train = adjustment.train;
     const carName = adjustment.carName;
     const adjustmentString = `${adjustment.adjustment} on ${adjustment.time} by ${adjustment.user}`;
 
-    const carRowIndex = sheet.data && sheet.data[0] && sheet.data[0].rowData 
-      ? sheet.data[0].rowData.findIndex(rowData => 
-          rowData.values[0].userEnteredValue.stringValue === train && 
-          rowData.values[1].userEnteredValue.stringValue === carName
-        )
-      : -1;
-    
+    const carRowIndex = sheet.data[0].rowData.findIndex(rowData => 
+      rowData.values && 
+      rowData.values[0] && 
+      rowData.values[0].userEnteredValue && 
+      rowData.values[0].userEnteredValue.stringValue === train &&
+      rowData.values[1] && 
+      rowData.values[1].userEnteredValue && 
+      rowData.values[1].userEnteredValue.stringValue === carName
+    );
+
     if (carRowIndex !== -1) {
-      const colIndex = sheet.data[0].rowData[carRowIndex].values.findIndex((cell, idx) => idx > 1 && !cell.userEnteredValue);
+      const colIndex = sheet.data[0].rowData[carRowIndex].values.findIndex((cell, idx) => idx > 1 && (!cell || !cell.userEnteredValue));
       
       if (colIndex !== -1) {
+        console.log(`Updating cell at row ${carRowIndex + 1} and column ${colIndex + 1} with value: ${adjustmentString}`);
         return {
           updateCells: {
             range: {
@@ -276,6 +284,9 @@ async function updateDailySheet(sheets, date, adjustments, isNewSheet) {
         };
       }
     }
+
+    console.log(`No available cell found for adjustment: ${adjustmentString}`);
+    return null;
   }).filter(Boolean);
 
   if (requests.length === 0) {
