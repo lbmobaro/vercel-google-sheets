@@ -6,10 +6,11 @@ const SHEET_ID = process.env.SHEET_ID;
 const API_BASE_URL = process.env.API_BASE_URL;
 const API_CHECKLISTS = process.env.API_CHECKLISTS;
 const API_USER_GROUP = process.env.API_USER_GROUP;
-const API_TOKEN = process.env.API_TOKEN;
+const API_TOKEN = process.env.API_TOKEN; // Assume this is the x-api-key value
 
 const credentials = JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS, 'base64').toString('utf-8'));
 
+// Mapping of element IDs to car names and sides
 const carNames = {
   'elements/2691957-C': 'RIGHT SIDE Pilot Car',
   'elements/2691958-C': 'RIGHT SIDE Car #1',
@@ -49,7 +50,7 @@ async function getGoogleSheetClient() {
   });
 
   const authClient = await auth.getClient();
-  console.log('Authenticated with service account:', credentials.client_email);
+  console.log('Authenticated with service account:', credentials.client_email); // Log the service account email
   return google.sheets({ version: 'v4', auth: authClient });
 }
 
@@ -121,13 +122,11 @@ function parseData(data, userMap) {
     data.items.forEach(item => {
       if (item.values && item.values.length > 0) {
         item.values.forEach(value => {
-          const carName = carNames[value.question];
-          const adjustment = adjustmentValues[value.answers[0]];
-          if (carName && adjustment) {
+          if (value.answers) {
             adjustments.push({
               train,
-              carName,
-              adjustment,
+              carName: carNames[value.question],
+              adjustment: adjustmentValues[value.answers[0]],
               time: formatDateTime(value.answered),
               user: userMap[item.user] || item.user
             });
@@ -190,15 +189,16 @@ async function createDailySheet(sheets, date) {
             startRowIndex: 0,
             startColumnIndex: 0,
             endRowIndex: 1,
-            endColumnIndex: 19,
+            endColumnIndex: 5,
           },
           rows: [
             {
               values: [
                 { userEnteredValue: { stringValue: "Train" }, userEnteredFormat: { textFormat: { bold: true } } },
-                { userEnteredValue: { stringValue: "Car" }, userEnteredFormat: { textFormat: { bold: true } } },
-                ...Array.from({ length: 8 }, (_, i) => ({ userEnteredValue: { stringValue: `Cycle Time ${i + 1}` }, userEnteredFormat: { textFormat: { bold: true } } })),
-                ...Array.from({ length: 8 }, (_, i) => ({ userEnteredValue: { stringValue: `Adjustment ${i + 1}` }, userEnteredFormat: { textFormat: { bold: true } } })),
+                { userEnteredValue: { stringValue: "Car Name" }, userEnteredFormat: { textFormat: { bold: true } } },
+                { userEnteredValue: { stringValue: "Adjustment" }, userEnteredFormat: { textFormat: { bold: true } } },
+                { userEnteredValue: { stringValue: "Time" }, userEnteredFormat: { textFormat: { bold: true } } },
+                { userEnteredValue: { stringValue: "Adjusted by" }, userEnteredFormat: { textFormat: { bold: true } } },
               ],
             },
           ],
@@ -206,19 +206,17 @@ async function createDailySheet(sheets, date) {
         },
       },
       {
-        appendCells: {
-          sheetId,
-          rows: [
-            ...Object.values(assetNames).flatMap(train =>
-              Object.values(carNames).map(carName => ({
-                values: [
-                  { userEnteredValue: { stringValue: train } },
-                  { userEnteredValue: { stringValue: carName } },
-                ],
-              }))
-            ),
-          ],
-          fields: "userEnteredValue",
+        addFilterView: {
+          filter: {
+            title: "Filter",
+            range: {
+              sheetId,
+              startRowIndex: 0,
+              startColumnIndex: 0,
+              endRowIndex: 1,
+              endColumnIndex: 5,
+            },
+          },
         },
       },
     ];
@@ -234,74 +232,80 @@ async function createDailySheet(sheets, date) {
 }
 
 async function updateDailySheet(sheets, date, adjustments, isNewSheet) {
-  const sheetResponse = await sheets.spreadsheets.get({
-    spreadsheetId: SHEET_ID,
-  });
-  const sheet = sheetResponse.data.sheets.find(sheet => sheet.properties.title === date);
+  const rows = adjustments.map(adjustment => [adjustment.train, adjustment.carName, adjustment.adjustment, adjustment.time, adjustment.user]);
 
-  if (!sheet || !sheet.data || !sheet.data[0] || !sheet.data[0].rowData) {
-    throw new Error('Sheet data is not available or improperly formatted.');
-  }
-
-  const requests = adjustments.map(adjustment => {
-    const train = adjustment.train;
-    const carName = adjustment.carName;
-    const adjustmentString = `${adjustment.adjustment} on ${adjustment.time} by ${adjustment.user}`;
-
-    const carRowIndex = sheet.data[0].rowData.findIndex(rowData => 
-      rowData.values && 
-      rowData.values[0] && 
-      rowData.values[0].userEnteredValue && 
-      rowData.values[0].userEnteredValue.stringValue === train &&
-      rowData.values[1] && 
-      rowData.values[1].userEnteredValue && 
-      rowData.values[1].userEnteredValue.stringValue === carName
-    );
-
-    if (carRowIndex !== -1) {
-      const colIndex = sheet.data[0].rowData[carRowIndex].values.findIndex((cell, idx) => idx > 1 && (!cell || !cell.userEnteredValue));
-      
-      if (colIndex !== -1) {
-        console.log(`Updating cell at row ${carRowIndex + 1} and column ${colIndex + 1} with value: ${adjustmentString}`);
-        return {
-          updateCells: {
-            range: {
-              sheetId: sheet.properties.sheetId,
-              startRowIndex: carRowIndex,
-              startColumnIndex: colIndex,
-              endRowIndex: carRowIndex + 1,
-              endColumnIndex: colIndex + 1,
-            },
-            rows: [
-              {
-                values: [
-                  { userEnteredValue: { stringValue: adjustmentString } },
-                ],
-              },
-            ],
-            fields: "userEnteredValue",
-          },
-        };
-      }
-    }
-
-    console.log(`No available cell found for adjustment: ${adjustmentString}`);
-    return null;
-  }).filter(Boolean);
-
-  if (requests.length === 0) {
-    throw new Error("Must specify at least one request.");
-  }
+  const startRow = isNewSheet ? 2 : await getLastRowNumber(sheets, date) + 1;
+  const range = `${date}!A${startRow}:E${startRow + rows.length - 1}`;
+  const values = rows;
 
   try {
-    await sheets.spreadsheets.batchUpdate({
+    await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      resource: { requests },
+      range,
+      valueInputOption: 'RAW',
+      resource: {
+        values,
+      },
     });
     console.log(`Sheet for ${date} updated successfully`);
   } catch (error) {
     console.error(`Error updating sheet for ${date}:`, error);
     throw new Error(`Error updating sheet for ${date}`);
+  }
+}
+
+async function getLastRowNumber(sheets, sheetName) {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `${sheetName}!A:A`,
+    });
+    const numRows = response.data.values ? response.data.values.length : 0;
+    return numRows;
+  } catch (error) {
+    console.error(`Error getting last row number for sheet "${sheetName}":`, error);
+    throw new Error(`Error getting last row number for sheet "${sheetName}"`);
+  }
+}
+
+async function updateTotalAdjustments(sheets, adjustments) {
+  const sheetName = 'Total Adjustments';
+  await createSheetIfNotExists(sheets, sheetName);
+
+  const totalRange = `${sheetName}!A1:B`;
+  
+  try {
+    // Read current totals
+    const currentTotalsResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: totalRange,
+    });
+    
+    const currentTotals = currentTotalsResponse.data.values || [];
+    const totalsMap = new Map(currentTotals.map(row => [row[0], parseInt(row[1], 10)]));
+
+    // Update totals with today's adjustments
+    adjustments.forEach(adjustment => {
+      const currentTotal = totalsMap.get(adjustment.carName) || 0;
+      totalsMap.set(adjustment.carName, currentTotal + (adjustment.adjustment === 'Tightened' ? 1 : adjustment.adjustment === 'Loosened' ? -1 : 0));
+    });
+
+    // Prepare the updated totals data
+    const updatedTotals = Array.from(totalsMap.entries());
+
+    // Write back the updated totals
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: totalRange,
+      valueInputOption: 'RAW',
+      resource: {
+        values: updatedTotals,
+      },
+    });
+    console.log('Total adjustments updated successfully');
+  } catch (error) {
+    console.error('Error updating total adjustments:', error);
+    throw new Error('Error updating total adjustments');
   }
 }
 
@@ -317,6 +321,7 @@ module.exports = async (req, res) => {
 
     const isNewSheet = await createDailySheet(sheets, date);
     await updateDailySheet(sheets, date, adjustments, isNewSheet);
+    await updateTotalAdjustments(sheets, adjustments);
 
     console.log('All operations completed successfully');
     res.status(200).json({ message: 'Success' });
