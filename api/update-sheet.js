@@ -5,7 +5,8 @@ const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 const SHEET_ID = process.env.SHEET_ID;
 const API_BASE_URL = process.env.API_BASE_URL;
 const API_CHECKLISTS = process.env.API_CHECKLISTS;
-const API_TOKEN = process.env.API_TOKEN;
+const API_USER_GROUP = process.env.API_USER_GROUP;
+const API_TOKEN = process.env.API_TOKEN; // Assume this is the x-api-key value
 
 const credentials = JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS, 'base64').toString('utf-8'));
 
@@ -38,8 +39,8 @@ const adjustmentValues = {
 };
 
 const assetNames = {
-  'assets/12124-A': 'Train 1',
-  'assets/12125-A': 'Train 2'
+  'assets/12125-A': 'Train 1',
+  'assets/12130-A': 'Train 2'
 };
 
 async function getGoogleSheetClient() {
@@ -76,7 +77,30 @@ async function fetchData() {
   }
 }
 
-function parseData(data) {
+async function fetchUsers() {
+  const apiUrl = `${API_BASE_URL}/usergroups/${API_USER_GROUP}`;
+
+  console.log('Fetching user data from API URL:', apiUrl);
+
+  try {
+    const response = await axios.get(apiUrl, {
+      headers: {
+        'x-api-key': API_TOKEN,
+      },
+    });
+    const users = response.data.users.reduce((acc, user) => {
+      acc[user.id] = user.name;
+      return acc;
+    }, {});
+    console.log('User data fetched successfully:', users);
+    return users;
+  } catch (error) {
+    console.error('Error fetching user data:', error.response ? error.response.data : error.message);
+    throw new Error('Error fetching user data');
+  }
+}
+
+function parseData(data, userMap) {
   const adjustments = [];
   if (data.items && data.items.length > 0) {
     const asset = data.items[0].asset;
@@ -89,7 +113,8 @@ function parseData(data) {
               train,
               carName: carNames[value.question],
               adjustment: adjustmentValues[value.answers[0]],
-              time: value.answered
+              time: value.answered,
+              user: userMap[item.user] || item.user
             });
           }
         });
@@ -150,7 +175,7 @@ async function createDailySheet(sheets, date) {
             startRowIndex: 0,
             startColumnIndex: 0,
             endRowIndex: 1,
-            endColumnIndex: 4,
+            endColumnIndex: 5,
           },
           rows: [
             {
@@ -159,6 +184,7 @@ async function createDailySheet(sheets, date) {
                 { userEnteredValue: { stringValue: "Car Name" }, userEnteredFormat: { textFormat: { bold: true } } },
                 { userEnteredValue: { stringValue: "Adjustment" }, userEnteredFormat: { textFormat: { bold: true } } },
                 { userEnteredValue: { stringValue: "Time" }, userEnteredFormat: { textFormat: { bold: true } } },
+                { userEnteredValue: { stringValue: "Adjusted by" }, userEnteredFormat: { textFormat: { bold: true } } },
               ],
             },
           ],
@@ -174,7 +200,7 @@ async function createDailySheet(sheets, date) {
               startRowIndex: 0,
               startColumnIndex: 0,
               endRowIndex: 1,
-              endColumnIndex: 4,
+              endColumnIndex: 5,
             },
           },
         },
@@ -192,10 +218,10 @@ async function createDailySheet(sheets, date) {
 }
 
 async function updateDailySheet(sheets, date, adjustments, isNewSheet) {
-  const rows = adjustments.map(adjustment => [adjustment.train, adjustment.carName, adjustment.adjustment, adjustment.time]);
+  const rows = adjustments.map(adjustment => [adjustment.train, adjustment.carName, adjustment.adjustment, adjustment.time, adjustment.user]);
 
   const startRow = isNewSheet ? 2 : await getLastRowNumber(sheets, date) + 1;
-  const range = `${date}!A${startRow}:D${startRow + rows.length - 1}`;
+  const range = `${date}!A${startRow}:E${startRow + rows.length - 1}`;
   const values = rows;
 
   try {
@@ -273,7 +299,8 @@ module.exports = async (req, res) => {
   try {
     console.log('Request received');
     const data = await fetchData();
-    const adjustments = parseData(data);
+    const userMap = await fetchUsers();
+    const adjustments = parseData(data, userMap);
     const sheets = await getGoogleSheetClient();
     
     const date = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
