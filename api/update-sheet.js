@@ -37,6 +37,11 @@ const adjustmentValues = {
   '1': 'Tightened'
 };
 
+const assetNames = {
+  'assets/12124-A': 'Train 1',
+  'assets/12125-A': 'Train 2'
+};
+
 async function getGoogleSheetClient() {
   const auth = new google.auth.GoogleAuth({
     credentials,
@@ -74,11 +79,14 @@ async function fetchData() {
 function parseData(data) {
   const adjustments = [];
   if (data.items && data.items.length > 0) {
+    const asset = data.items[0].asset;
+    const train = assetNames[asset] || 'Unknown Train';
     data.items.forEach(item => {
       if (item.values && item.values.length > 0) {
         item.values.forEach(value => {
           if (value.answers) {
             adjustments.push({
+              train,
               carName: carNames[value.question],
               adjustment: adjustmentValues[value.answers[0]],
               time: value.answered
@@ -131,11 +139,11 @@ async function createDailySheet(sheets, date) {
 }
 
 async function updateDailySheet(sheets, date, adjustments, isNewSheet) {
-  const rows = adjustments.map(adjustment => [adjustment.carName, adjustment.adjustment, adjustment.time]);
+  const rows = adjustments.map(adjustment => [adjustment.train, adjustment.carName, adjustment.adjustment, adjustment.time]);
 
   const startRow = isNewSheet ? 1 : await getLastRowNumber(sheets, date) + 1;
-  const range = `${date}!A${startRow}:C${startRow + rows.length - 1}`;
-  const header = isNewSheet ? [['Car Name', 'Adjustment', 'Time']] : [];
+  const range = `${date}!A${startRow}:D${startRow + rows.length - 1}`;
+  const header = isNewSheet ? [['Train', 'Car Name', 'Adjustment', 'Time']] : [];
   const values = header.concat(rows);
 
   try {
