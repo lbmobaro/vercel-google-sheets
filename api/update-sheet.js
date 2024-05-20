@@ -6,10 +6,11 @@ const SHEET_ID = process.env.SHEET_ID;
 const API_BASE_URL = process.env.API_BASE_URL;
 const API_CHECKLISTS = process.env.API_CHECKLISTS;
 const API_USER_GROUP = process.env.API_USER_GROUP;
-const API_TOKEN = process.env.API_TOKEN;
+const API_TOKEN = process.env.API_TOKEN; // Assume this is the x-api-key value
 
 const credentials = JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS, 'base64').toString('utf-8'));
 
+// Mapping of element IDs to car names and sides
 const carNames = {
   'elements/2691957-C': 'RIGHT SIDE Pilot Car',
   'elements/2691958-C': 'RIGHT SIDE Car #1',
@@ -49,15 +50,18 @@ async function getGoogleSheetClient() {
   });
 
   const authClient = await auth.getClient();
+  console.log('Authenticated with service account:', credentials.client_email); // Log the service account email
   return google.sheets({ version: 'v4', auth: authClient });
 }
 
 async function fetchData() {
   const now = new Date();
   const answeredBefore = now.toISOString();
-  const answeredAfter = new Date(now.getTime() - 60000).toISOString();
+  const answeredAfter = new Date(now.getTime() - 60000).toISOString(); // 1 minute earlier
 
   const apiUrl = `${API_BASE_URL}/results?Checklists=${API_CHECKLISTS}&AnsweredBefore=${encodeURIComponent(answeredBefore)}&AnsweredAfter=${encodeURIComponent(answeredAfter)}`;
+
+  console.log('Fetching data from API URL:', apiUrl);
 
   try {
     const response = await axios.get(apiUrl, {
@@ -65,14 +69,18 @@ async function fetchData() {
         'x-api-key': API_TOKEN,
       },
     });
+    console.log('Data fetched successfully:', response.data);
     return response.data;
   } catch (error) {
+    console.error('Error fetching data:', error.response ? error.response.data : error.message);
     throw new Error('Error fetching data');
   }
 }
 
 async function fetchUsers() {
   const apiUrl = `${API_BASE_URL}/usergroups/${API_USER_GROUP}`;
+
+  console.log('Fetching user data from API URL:', apiUrl);
 
   try {
     const response = await axios.get(apiUrl, {
@@ -84,8 +92,10 @@ async function fetchUsers() {
       acc[user.id] = user.name;
       return acc;
     }, {});
+    console.log('User data fetched successfully:', users);
     return users;
   } catch (error) {
+    console.error('Error fetching user data:', error.response ? error.response.data : error.message);
     throw new Error('Error fetching user data');
   }
 }
@@ -125,6 +135,7 @@ function parseData(data, userMap) {
       }
     });
   }
+  console.log('Parsed data:', adjustments);
   return adjustments;
 }
 
@@ -150,9 +161,14 @@ async function createSheetIfNotExists(sheets, sheetName) {
         spreadsheetId: SHEET_ID,
         resource: { requests },
       });
+
+      console.log(`Sheet "${sheetName}" created successfully`);
+    } else {
+      console.log(`Sheet "${sheetName}" already exists`);
     }
     return !sheetExists;
   } catch (error) {
+    console.error(`Error checking/creating sheet "${sheetName}":`, error);
     throw new Error(`Error checking/creating sheet "${sheetName}"`);
   }
 }
@@ -209,6 +225,8 @@ async function createDailySheet(sheets, date) {
       spreadsheetId: SHEET_ID,
       resource: { requests },
     });
+
+    console.log(`Sheet "${date}" formatted successfully`);
   }
   return isNewSheet;
 }
@@ -229,7 +247,9 @@ async function updateDailySheet(sheets, date, adjustments, isNewSheet) {
         values,
       },
     });
+    console.log(`Sheet for ${date} updated successfully`);
   } catch (error) {
+    console.error(`Error updating sheet for ${date}:`, error);
     throw new Error(`Error updating sheet for ${date}`);
   }
 }
@@ -243,6 +263,7 @@ async function getLastRowNumber(sheets, sheetName) {
     const numRows = response.data.values ? response.data.values.length : 0;
     return numRows;
   } catch (error) {
+    console.error(`Error getting last row number for sheet "${sheetName}":`, error);
     throw new Error(`Error getting last row number for sheet "${sheetName}"`);
   }
 }
@@ -252,23 +273,27 @@ async function updateTotalAdjustments(sheets, adjustments) {
   await createSheetIfNotExists(sheets, sheetName);
 
   const totalRange = `${sheetName}!A1:B`;
-
+  
   try {
+    // Read current totals
     const currentTotalsResponse = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: totalRange,
     });
-
+    
     const currentTotals = currentTotalsResponse.data.values || [];
     const totalsMap = new Map(currentTotals.map(row => [row[0], parseInt(row[1], 10)]));
 
+    // Update totals with today's adjustments
     adjustments.forEach(adjustment => {
       const currentTotal = totalsMap.get(adjustment.carName) || 0;
       totalsMap.set(adjustment.carName, currentTotal + (adjustment.adjustment === 'Tightened' ? 1 : adjustment.adjustment === 'Loosened' ? -1 : 0));
     });
 
+    // Prepare the updated totals data
     const updatedTotals = Array.from(totalsMap.entries());
 
+    // Write back the updated totals
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
       range: totalRange,
@@ -277,30 +302,31 @@ async function updateTotalAdjustments(sheets, adjustments) {
         values: updatedTotals,
       },
     });
+    console.log('Total adjustments updated successfully');
   } catch (error) {
+    console.error('Error updating total adjustments:', error);
     throw new Error('Error updating total adjustments');
   }
 }
 
-export default async function handler(req, res) {
-  if (req.headers.get('Authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
-    return res.status(401).end('Unauthorized');
-  }
-
+module.exports = async (req, res) => {
   try {
+    console.log('Request received');
     const data = await fetchData();
     const userMap = await fetchUsers();
     const adjustments = parseData(data, userMap);
     const sheets = await getGoogleSheetClient();
-
-    const date = new Date().toISOString().split('T')[0];
+    
+    const date = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
 
     const isNewSheet = await createDailySheet(sheets, date);
     await updateDailySheet(sheets, date, adjustments, isNewSheet);
     await updateTotalAdjustments(sheets, adjustments);
 
+    console.log('All operations completed successfully');
     res.status(200).json({ message: 'Success' });
   } catch (error) {
+    console.error('Internal Server Error:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 };
