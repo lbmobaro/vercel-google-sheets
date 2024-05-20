@@ -6,7 +6,7 @@ const SHEET_ID = process.env.SHEET_ID;
 const API_BASE_URL = process.env.API_BASE_URL;
 const API_CHECKLISTS = process.env.API_CHECKLISTS;
 const API_USER_GROUP = process.env.API_USER_GROUP;
-const API_TOKEN = process.env.API_TOKEN; // Assume this is the x-api-key value
+const API_TOKEN = process.env.API_TOKEN;
 
 const credentials = JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS, 'base64').toString('utf-8'));
 
@@ -204,17 +204,19 @@ async function createDailySheet(sheets, date) {
         },
       },
       {
-        addFilterView: {
-          filter: {
-            title: "Filter",
-            range: {
-              sheetId,
-              startRowIndex: 0,
-              startColumnIndex: 0,
-              endRowIndex: 1,
-              endColumnIndex: 19,
-            },
-          },
+        appendCells: {
+          sheetId,
+          rows: [
+            ...Object.values(assetNames).flatMap(train =>
+              Object.values(carNames).map(carName => ({
+                values: [
+                  { userEnteredValue: { stringValue: train } },
+                  { userEnteredValue: { stringValue: carName } },
+                ],
+              }))
+            ),
+          ],
+          fields: "userEnteredValue",
         },
       },
     ];
@@ -240,7 +242,10 @@ async function updateDailySheet(sheets, date, adjustments, isNewSheet) {
     const carName = adjustment.carName;
     const adjustmentString = `${adjustment.adjustment} on ${adjustment.time} by ${adjustment.user}`;
 
-    const carRowIndex = sheet.data[0].rowData.findIndex(rowData => rowData.values[0].userEnteredValue.stringValue === train && rowData.values[1].userEnteredValue.stringValue === carName);
+    const carRowIndex = sheet.data[0].rowData.findIndex(rowData => 
+      rowData.values[0].userEnteredValue.stringValue === train && 
+      rowData.values[1].userEnteredValue.stringValue === carName
+    );
     
     if (carRowIndex !== -1) {
       const colIndex = sheet.data[0].rowData[carRowIndex].values.findIndex((cell, idx) => idx > 1 && !cell.userEnteredValue);
@@ -268,6 +273,10 @@ async function updateDailySheet(sheets, date, adjustments, isNewSheet) {
       }
     }
   }).filter(Boolean);
+
+  if (requests.length === 0) {
+    throw new Error("Must specify at least one request.");
+  }
 
   try {
     await sheets.spreadsheets.batchUpdate({
