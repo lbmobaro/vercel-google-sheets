@@ -59,7 +59,7 @@ async function fetchData() {
   const answeredBefore = now.toISOString();
   const answeredAfter = new Date(now.getTime() - 60000).toISOString(); // 1 minute earlier
 
-  const apiUrl = `${API_BASE_URL}?Checklists=${API_CHECKLISTS}&AnsweredBefore=${encodeURIComponent(answeredBefore)}&AnsweredAfter=${encodeURIComponent(answeredAfter)}`;
+  const apiUrl = `${API_BASE_URL}?/results/Checklists=${API_CHECKLISTS}&AnsweredBefore=${encodeURIComponent(answeredBefore)}&AnsweredAfter=${encodeURIComponent(answeredAfter)}`;
 
   console.log('Fetching data from API URL:', apiUrl);
 
@@ -78,7 +78,7 @@ async function fetchData() {
 }
 
 async function fetchUsers() {
-  const apiUrl = `${API_BASE_URL}/usergroups/${API_USER_GROUP}`;
+  const apiUrl = `${API_BASE_URL}/usergroups%2F${API_USER_GROUP}`;
 
   console.log('Fetching user data from API URL:', apiUrl);
 
