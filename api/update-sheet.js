@@ -5,7 +5,7 @@ const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 const SHEET_ID = process.env.SHEET_ID;
 const API_BASE_URL = process.env.API_BASE_URL;
 const API_CHECKLISTS = process.env.API_CHECKLISTS;
-const API_TOKEN = process.env.API_TOKEN; // Assume this is the x-api-key value
+const API_TOKEN = process.env.API_TOKEN;
 
 const credentials = JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS, 'base64').toString('utf-8'));
 
@@ -108,20 +108,21 @@ async function createSheetIfNotExists(sheets, sheetName) {
     const sheetExists = sheetResponse.data.sheets.some(sheet => sheet.properties.title === sheetName);
 
     if (!sheetExists) {
+      const requests = [
+        {
+          addSheet: {
+            properties: {
+              title: sheetName,
+            },
+          },
+        },
+      ];
+
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId: SHEET_ID,
-        resource: {
-          requests: [
-            {
-              addSheet: {
-                properties: {
-                  title: sheetName,
-                },
-              },
-            },
-          ],
-        },
+        resource: { requests },
       });
+
       console.log(`Sheet "${sheetName}" created successfully`);
     } else {
       console.log(`Sheet "${sheetName}" already exists`);
@@ -135,16 +136,67 @@ async function createSheetIfNotExists(sheets, sheetName) {
 
 async function createDailySheet(sheets, date) {
   const isNewSheet = await createSheetIfNotExists(sheets, date);
+  if (isNewSheet) {
+    const sheetResponse = await sheets.spreadsheets.get({
+      spreadsheetId: SHEET_ID,
+    });
+    const sheetId = sheetResponse.data.sheets.find(sheet => sheet.properties.title === date).properties.sheetId;
+
+    const requests = [
+      {
+        updateCells: {
+          range: {
+            sheetId,
+            startRowIndex: 0,
+            startColumnIndex: 0,
+            endRowIndex: 1,
+            endColumnIndex: 4,
+          },
+          rows: [
+            {
+              values: [
+                { userEnteredValue: { stringValue: "Train" }, userEnteredFormat: { textFormat: { bold: true } } },
+                { userEnteredValue: { stringValue: "Car Name" }, userEnteredFormat: { textFormat: { bold: true } } },
+                { userEnteredValue: { stringValue: "Adjustment" }, userEnteredFormat: { textFormat: { bold: true } } },
+                { userEnteredValue: { stringValue: "Time" }, userEnteredFormat: { textFormat: { bold: true } } },
+              ],
+            },
+          ],
+          fields: "userEnteredValue,userEnteredFormat.textFormat.bold",
+        },
+      },
+      {
+        addFilterView: {
+          filter: {
+            title: "Filter",
+            range: {
+              sheetId,
+              startRowIndex: 0,
+              startColumnIndex: 0,
+              endRowIndex: 1,
+              endColumnIndex: 4,
+            },
+          },
+        },
+      },
+    ];
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SHEET_ID,
+      resource: { requests },
+    });
+
+    console.log(`Sheet "${date}" formatted successfully`);
+  }
   return isNewSheet;
 }
 
 async function updateDailySheet(sheets, date, adjustments, isNewSheet) {
   const rows = adjustments.map(adjustment => [adjustment.train, adjustment.carName, adjustment.adjustment, adjustment.time]);
 
-  const startRow = isNewSheet ? 1 : await getLastRowNumber(sheets, date) + 1;
+  const startRow = isNewSheet ? 2 : await getLastRowNumber(sheets, date) + 1;
   const range = `${date}!A${startRow}:D${startRow + rows.length - 1}`;
-  const header = isNewSheet ? [['Train', 'Car Name', 'Adjustment', 'Time']] : [];
-  const values = header.concat(rows);
+  const values = rows;
 
   try {
     await sheets.spreadsheets.values.append({
