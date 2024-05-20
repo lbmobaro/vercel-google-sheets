@@ -6,7 +6,7 @@ const SHEET_ID = process.env.SHEET_ID;
 const API_BASE_URL = process.env.API_BASE_URL;
 const API_CHECKLISTS = process.env.API_CHECKLISTS;
 const API_USER_GROUP = process.env.API_USER_GROUP;
-const API_TOKEN = process.env.API_TOKEN; // Assume this is the x-api-key value
+const API_TOKEN = process.env.API_TOKEN;
 
 const credentials = JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS, 'base64').toString('utf-8'));
 
@@ -50,14 +50,14 @@ async function getGoogleSheetClient() {
   });
 
   const authClient = await auth.getClient();
-  console.log('Authenticated with service account:', credentials.client_email); // Log the service account email
+  console.log('Authenticated with service account:', credentials.client_email);
   return google.sheets({ version: 'v4', auth: authClient });
 }
 
 async function fetchData() {
   const now = new Date();
   const answeredBefore = now.toISOString();
-  const answeredAfter = new Date(now.getTime() - 60000).toISOString(); // 1 minute earlier
+  const answeredAfter = new Date(now.getTime() - 60000).toISOString();
 
   const apiUrl = `${API_BASE_URL}/results?Checklists=${API_CHECKLISTS}&AnsweredBefore=${encodeURIComponent(answeredBefore)}&AnsweredAfter=${encodeURIComponent(answeredAfter)}`;
 
@@ -309,7 +309,11 @@ async function updateTotalAdjustments(sheets, adjustments) {
   }
 }
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
+  if (req.headers.get('Authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
+    return res.status(401).end('Unauthorized');
+  }
+
   try {
     console.log('Request received');
     const data = await fetchData();
