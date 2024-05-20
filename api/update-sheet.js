@@ -121,11 +121,13 @@ function parseData(data, userMap) {
     data.items.forEach(item => {
       if (item.values && item.values.length > 0) {
         item.values.forEach(value => {
-          if (value.answers) {
+          const carName = carNames[value.question];
+          const adjustment = adjustmentValues[value.answers[0]];
+          if (carName && adjustment) {
             adjustments.push({
               train,
-              carName: carNames[value.question],
-              adjustment: adjustmentValues[value.answers[0]],
+              carName,
+              adjustment,
               time: formatDateTime(value.answered),
               user: userMap[item.user] || item.user
             });
@@ -242,10 +244,12 @@ async function updateDailySheet(sheets, date, adjustments, isNewSheet) {
     const carName = adjustment.carName;
     const adjustmentString = `${adjustment.adjustment} on ${adjustment.time} by ${adjustment.user}`;
 
-    const carRowIndex = sheet.data[0].rowData.findIndex(rowData => 
-      rowData.values[0].userEnteredValue.stringValue === train && 
-      rowData.values[1].userEnteredValue.stringValue === carName
-    );
+    const carRowIndex = sheet.data && sheet.data[0] && sheet.data[0].rowData 
+      ? sheet.data[0].rowData.findIndex(rowData => 
+          rowData.values[0].userEnteredValue.stringValue === train && 
+          rowData.values[1].userEnteredValue.stringValue === carName
+        )
+      : -1;
     
     if (carRowIndex !== -1) {
       const colIndex = sheet.data[0].rowData[carRowIndex].values.findIndex((cell, idx) => idx > 1 && !cell.userEnteredValue);
