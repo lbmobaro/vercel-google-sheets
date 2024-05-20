@@ -119,6 +119,26 @@ async function createSheetIfNotExists(sheets, sheetName) {
                 },
               },
             },
+            {
+              updateCells: {
+                range: {
+                  sheetId: sheetResponse.data.sheets.find(sheet => sheet.properties.title === sheetName).properties.sheetId,
+                  startRowIndex: 0,
+                  startColumnIndex: 0,
+                  endRowIndex: 1,
+                  endColumnIndex: 4
+                },
+                rows: [{
+                  values: [
+                    { userEnteredValue: { stringValue: "Train" }, userEnteredFormat: { textFormat: { bold: true } } },
+                    { userEnteredValue: { stringValue: "Side/Car" }, userEnteredFormat: { textFormat: { bold: true } } },
+                    { userEnteredValue: { stringValue: "Action" }, userEnteredFormat: { textFormat: { bold: true } } },
+                    { userEnteredValue: { stringValue: "Time Registered" }, userEnteredFormat: { textFormat: { bold: true } } }
+                  ]
+                }],
+                fields: "userEnteredValue,userEnteredFormat.textFormat.bold"
+              }
+            }
           ],
         },
       });
@@ -141,10 +161,9 @@ async function createDailySheet(sheets, date) {
 async function updateDailySheet(sheets, date, adjustments, isNewSheet) {
   const rows = adjustments.map(adjustment => [adjustment.train, adjustment.carName, adjustment.adjustment, adjustment.time]);
 
-  const startRow = isNewSheet ? 1 : await getLastRowNumber(sheets, date) + 1;
+  const startRow = isNewSheet ? 2 : await getLastRowNumber(sheets, date) + 1;
   const range = `${date}!A${startRow}:D${startRow + rows.length - 1}`;
-  const header = isNewSheet ? [['Train', 'Car Name', 'Adjustment', 'Time']] : [];
-  const values = header.concat(rows);
+  const values = rows;
 
   try {
     await sheets.spreadsheets.values.append({
@@ -217,23 +236,4 @@ async function updateTotalAdjustments(sheets, adjustments) {
   }
 }
 
-module.exports = async (req, res) => {
-  try {
-    console.log('Request received');
-    const data = await fetchData();
-    const adjustments = parseData(data);
-    const sheets = await getGoogleSheetClient();
-    
-    const date = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
-
-    const isNewSheet = await createDailySheet(sheets, date);
-    await updateDailySheet(sheets, date, adjustments, isNewSheet);
-    await updateTotalAdjustments(sheets, adjustments);
-
-    console.log('All operations completed successfully');
-    res.status(200).json({ message: 'Success' });
-  } catch (error) {
-    console.error('Internal Server Error:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
-  }
-};
+module.exports = async (req
