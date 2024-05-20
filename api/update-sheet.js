@@ -6,7 +6,7 @@ const SHEET_ID = process.env.SHEET_ID;
 const API_BASE_URL = process.env.API_BASE_URL;
 const API_CHECKLISTS = process.env.API_CHECKLISTS;
 const API_USER_GROUP = process.env.API_USER_GROUP;
-const API_TOKEN = process.env.API_TOKEN;
+const API_TOKEN = process.env.API_TOKEN; // Assume this is the x-api-key value
 
 const credentials = JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS, 'base64').toString('utf-8'));
 
@@ -152,28 +152,6 @@ async function createSheetIfNotExists(sheets, sheetName) {
             properties: {
               title: sheetName,
             },
-          },
-        },
-        {
-          updateCells: {
-            range: {
-              sheetId: 0, // Assuming it's the first sheet
-              startRowIndex: 0,
-              startColumnIndex: 0,
-              endRowIndex: 1,
-              endColumnIndex: 19,
-            },
-            rows: [
-              {
-                values: [
-                  { userEnteredValue: { stringValue: "Train" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  { userEnteredValue: { stringValue: "Car" }, userEnteredFormat: { textFormat: { bold: true } } },
-                  ...Array.from({ length: 8 }, (_, i) => ({ userEnteredValue: { stringValue: `Cycle Time ${i + 1}` }, userEnteredFormat: { textFormat: { bold: true } } })),
-                  ...Array.from({ length: 8 }, (_, i) => ({ userEnteredValue: { stringValue: `Adjustment ${i + 1}` }, userEnteredFormat: { textFormat: { bold: true } } })),
-                ],
-              },
-            ],
-            fields: "userEnteredValue,userEnteredFormat.textFormat.bold",
           },
         },
       ];
