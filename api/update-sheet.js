@@ -78,7 +78,7 @@ async function fetchData() {
 }
 
 async function fetchUsers() {
-  const apiUrl = `${API_BASE_URL}/usergroups%2F${API_USER_GROUP}`;
+  const apiUrl = `${API_BASE_URL}/usergroups/${API_USER_GROUP}`;
 
   console.log('Fetching user data from API URL:', apiUrl);
 
@@ -100,6 +100,20 @@ async function fetchUsers() {
   }
 }
 
+function formatDateTime(dateTimeStr) {
+  const options = {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  };
+  const date = new Date(dateTimeStr);
+  return new Intl.DateTimeFormat('en-US', options).format(date).replace(',', ' at');
+}
+
 function parseData(data, userMap) {
   const adjustments = [];
   if (data.items && data.items.length > 0) {
@@ -113,7 +127,7 @@ function parseData(data, userMap) {
               train,
               carName: carNames[value.question],
               adjustment: adjustmentValues[value.answers[0]],
-              time: value.answered,
+              time: formatDateTime(value.answered),
               user: userMap[item.user] || item.user
             });
           }
