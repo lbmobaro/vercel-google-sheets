@@ -1,4 +1,4 @@
-const { runUpdates } = require('../src/runUpdates');
+const runUpdates = require('../src/runUpdates');
 
 module.exports = async (req, res) => {
   const authHeader = req.headers['authorization'];
