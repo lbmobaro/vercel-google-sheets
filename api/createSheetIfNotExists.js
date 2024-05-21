@@ -1,7 +1,9 @@
+const { google } = require('googleapis');
+
 async function createSheetIfNotExists(sheets, sheetName) {
   try {
     const sheetResponse = await sheets.spreadsheets.get({
-      spreadsheetId: SHEET_ID,
+      spreadsheetId: process.env.SHEET_ID,
     });
     const sheetExists = sheetResponse.data.sheets.some(sheet => sheet.properties.title === sheetName);
 
@@ -17,7 +19,7 @@ async function createSheetIfNotExists(sheets, sheetName) {
       ];
 
       await sheets.spreadsheets.batchUpdate({
-        spreadsheetId: SHEET_ID,
+        spreadsheetId: process.env.SHEET_ID,
         resource: { requests },
       });
 
