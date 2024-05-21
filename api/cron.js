@@ -1,4 +1,4 @@
-const { runUpdates } = require('../../runUpdates'); // Adjust the path if necessary
+const { runUpdates } = require('../../src/runUpdates');
 
 module.exports = async (req, res) => {
   if (req.headers['authorization'] !== `Bearer ${process.env.CRON_SECRET}`) {
