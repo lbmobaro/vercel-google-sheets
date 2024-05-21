@@ -1,17 +1,11 @@
-// index.js
-const express = require('express');
-const { runUpdates } = require('./runUpdates'); // Import your main function
+// src/index.js
+const { runUpdates } = require('./runUpdates');
 
-const app = express();
-
-app.get('/api/update-sheet', async (req, res) => {
+(async () => {
   try {
-    await runUpdates(); // Call your main function to run updates
-    res.status(200).json({ message: 'Success' });
+    await runUpdates();
+    console.log('Update successful');
   } catch (error) {
-    console.error('Internal Server Error:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error('Error in update:', error);
   }
-});
-
-module.exports = app;
+})();
