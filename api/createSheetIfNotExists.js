@@ -1,5 +1,3 @@
-const { google } = require('googleapis');
-
 async function createSheetIfNotExists(sheets, sheetName) {
   try {
     const sheetResponse = await sheets.spreadsheets.get({

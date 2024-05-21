@@ -1,7 +1,7 @@
 async function getLastRowNumber(sheets, sheetName) {
   try {
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET_ID,
+      spreadsheetId: process.env.SHEET_ID,
       range: `${sheetName}!A:A`,
     });
     const numRows = response.data.values ? response.data.values.length : 0;

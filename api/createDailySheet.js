@@ -4,7 +4,7 @@ async function createDailySheet(sheets, date) {
   const isNewSheet = await createSheetIfNotExists(sheets, date);
   if (isNewSheet) {
     const sheetResponse = await sheets.spreadsheets.get({
-      spreadsheetId: SHEET_ID,
+      spreadsheetId: process.env.SHEET_ID,
     });
     const sheetId = sheetResponse.data.sheets.find(sheet => sheet.properties.title === date).properties.sheetId;
 
@@ -16,7 +16,7 @@ async function createDailySheet(sheets, date) {
             startRowIndex: 0,
             startColumnIndex: 0,
             endRowIndex: 1,
-            endColumnIndex: 6, // Adjust the endColumnIndex to include "Latest Cycle Time"
+            endColumnIndex: 6, // Updated to 6 to include "Latest Cycle Time"
           },
           rows: [
             {
@@ -26,7 +26,7 @@ async function createDailySheet(sheets, date) {
                 { userEnteredValue: { stringValue: "Adjustment" }, userEnteredFormat: { textFormat: { bold: true } } },
                 { userEnteredValue: { stringValue: "Time" }, userEnteredFormat: { textFormat: { bold: true } } },
                 { userEnteredValue: { stringValue: "Adjusted by" }, userEnteredFormat: { textFormat: { bold: true } } },
-                { userEnteredValue: { stringValue: "Latest Cycle Time" }, userEnteredFormat: { textFormat: { bold: true } } }, // Add the new column
+                { userEnteredValue: { stringValue: "Latest Cycle Time" }, userEnteredFormat: { textFormat: { bold: true } } },
               ],
             },
           ],
@@ -50,7 +50,7 @@ async function createDailySheet(sheets, date) {
     ];
 
     await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: SHEET_ID,
+      spreadsheetId: process.env.SHEET_ID,
       resource: { requests },
     });
 
