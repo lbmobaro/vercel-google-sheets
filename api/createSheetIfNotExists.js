@@ -1,3 +1,4 @@
+// createSheetIfNotExists.js
 async function createSheetIfNotExists(sheets, sheetName) {
   try {
     const sheetResponse = await sheets.spreadsheets.get({
@@ -11,6 +12,7 @@ async function createSheetIfNotExists(sheets, sheetName) {
           addSheet: {
             properties: {
               title: sheetName,
+              index: 0, // Add the new sheet to the left-most position
             },
           },
         },
@@ -21,7 +23,7 @@ async function createSheetIfNotExists(sheets, sheetName) {
         resource: { requests },
       });
 
-      console.log(`Sheet "${sheetName}" created successfully`);
+      console.log(`Sheet "${sheetName}" created successfully in the left-most position`);
     } else {
       console.log(`Sheet "${sheetName}" already exists`);
     }
