@@ -1,8 +1,10 @@
-// api/cron.js
 const { runUpdates } = require('../src/runUpdates');
 
 module.exports = async (req, res) => {
-  if (req.headers['authorization'] !== `Bearer ${process.env.CRON_SECRET}`) {
+  const authHeader = req.headers['authorization'];
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (!authHeader || authHeader !== `Bearer ${cronSecret}`) {
     return res.status(401).send('Unauthorized');
   }
 
