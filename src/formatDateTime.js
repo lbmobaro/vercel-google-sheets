@@ -12,4 +12,4 @@ function formatDateTime(dateTimeStr) {
   return new Intl.DateTimeFormat('en-US', options).format(date).replace(',', ' at');
 }
 
-module.exports = { formatDateTime };
+module.exports = formatDateTime;

@@ -59,4 +59,4 @@ async function createDailySheet(sheets, date) {
   return isNewSheet;
 }
 
-module.exports = { createDailySheet };
+module.exports = createDailySheet;

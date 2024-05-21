@@ -24,4 +24,4 @@ async function fetchLatestCycleTime() {
   }
 }
 
-module.exports = { fetchLatestCycleTime };
+module.exports = fetchLatestCycleTime;

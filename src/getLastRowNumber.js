@@ -12,4 +12,4 @@ async function getLastRowNumber(sheets, sheetName) {
   }
 }
 
-module.exports = { getLastRowNumber };
+module.exports = getLastRowNumber;

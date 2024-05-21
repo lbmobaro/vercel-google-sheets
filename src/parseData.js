@@ -57,4 +57,4 @@ function parseData(data, userMap) {
   return adjustments;
 }
 
-module.exports = { parseData };
+module.exports = parseData;

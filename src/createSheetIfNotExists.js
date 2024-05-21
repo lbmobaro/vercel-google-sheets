@@ -34,4 +34,4 @@ async function createSheetIfNotExists(sheets, sheetName) {
   }
 }
 
-module.exports = { createSheetIfNotExists };
+module.exports = createSheetIfNotExists;

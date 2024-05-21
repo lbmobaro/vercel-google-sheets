@@ -35,4 +35,4 @@ async function getLastRowNumber(sheets, sheetName) {
   }
 }
 
-module.exports = { updateDailySheet };
+module.exports = updateDailySheet;

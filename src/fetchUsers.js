@@ -1,4 +1,5 @@
 const axios = require('axios');
+
 const API_BASE_URL = process.env.API_BASE_URL;
 const API_USER_GROUP = process.env.API_USER_GROUP;
 const API_TOKEN = process.env.API_TOKEN;
@@ -26,4 +27,4 @@ async function fetchUsers() {
   }
 }
 
-module.exports = { fetchUsers };
+module.exports = fetchUsers;

@@ -42,4 +42,4 @@ async function updateTotalAdjustments(sheets, adjustments) {
   }
 }
 
-module.exports = { updateTotalAdjustments };
+module.exports = updateTotalAdjustments;
