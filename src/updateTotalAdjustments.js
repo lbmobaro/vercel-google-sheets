@@ -1,5 +1,5 @@
 // updateTotalAdjustments.js
-const { createSheetIfNotExists } = require('./createSheetIfNotExists');
+const createSheetIfNotExists = require('./createSheetIfNotExists');
 
 async function updateTotalAdjustments(sheets, adjustments) {
   const sheetName = 'Total Adjustments';

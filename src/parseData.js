@@ -1,4 +1,4 @@
-const { formatDateTime } = require('./formatDateTime');
+const formatDateTime = require('./formatDateTime');
 
 const carNames = {
   'elements/2715492-C': 'RIGHT SIDE Pilot Car',
