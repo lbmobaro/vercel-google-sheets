@@ -1,12 +1,12 @@
-const { createSheetIfNotExists } = require('./createSheetIfNotExists');
+const createSheetIfNotExists = require('./createSheetIfNotExists');
 
-async function createDailySheet(sheets, date) {
-  const isNewSheet = await createSheetIfNotExists(sheets, date);
+async function createDailySheet(sheets, sheetName) {
+  const isNewSheet = await createSheetIfNotExists(sheets, sheetName);
   if (isNewSheet) {
     const sheetResponse = await sheets.spreadsheets.get({
       spreadsheetId: process.env.SHEET_ID,
     });
-    const sheetId = sheetResponse.data.sheets.find(sheet => sheet.properties.title === date).properties.sheetId;
+    const sheetId = sheetResponse.data.sheets.find(sheet => sheet.properties.title === sheetName).properties.sheetId;
 
     const requests = [
       {
@@ -16,7 +16,7 @@ async function createDailySheet(sheets, date) {
             startRowIndex: 0,
             startColumnIndex: 0,
             endRowIndex: 1,
-            endColumnIndex: 6, // Updated to 6 to include "Latest Cycle Time"
+            endColumnIndex: 5,
           },
           rows: [
             {
@@ -26,7 +26,6 @@ async function createDailySheet(sheets, date) {
                 { userEnteredValue: { stringValue: "Adjustment" }, userEnteredFormat: { textFormat: { bold: true } } },
                 { userEnteredValue: { stringValue: "Time" }, userEnteredFormat: { textFormat: { bold: true } } },
                 { userEnteredValue: { stringValue: "Adjusted by" }, userEnteredFormat: { textFormat: { bold: true } } },
-                { userEnteredValue: { stringValue: "Latest Cycle Time" }, userEnteredFormat: { textFormat: { bold: true } } },
               ],
             },
           ],
@@ -42,7 +41,7 @@ async function createDailySheet(sheets, date) {
               startRowIndex: 0,
               startColumnIndex: 0,
               endRowIndex: 1,
-              endColumnIndex: 6,
+              endColumnIndex: 5,
             },
           },
         },
@@ -54,7 +53,7 @@ async function createDailySheet(sheets, date) {
       resource: { requests },
     });
 
-    console.log(`Sheet "${date}" formatted successfully`);
+    console.log(`Sheet "${sheetName}" formatted successfully`);
   }
   return isNewSheet;
 }

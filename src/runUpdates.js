@@ -39,4 +39,4 @@ async function runUpdates() {
   console.log('All operations completed successfully');
 }
 
-module.exports = { runUpdates };
+module.exports = runUpdates;
