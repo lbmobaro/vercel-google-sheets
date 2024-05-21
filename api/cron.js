@@ -1,4 +1,5 @@
-const { runUpdates } = require('../../src/runUpdates');
+// api/cron.js
+const { runUpdates } = require('../src/runUpdates');
 
 module.exports = async (req, res) => {
   if (req.headers['authorization'] !== `Bearer ${process.env.CRON_SECRET}`) {
