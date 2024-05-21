@@ -11,7 +11,7 @@ const { updateDailySheet } = require('./updateDailySheet');
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.get('/update-sheet', async (req, res) => {
+app.get('/api/update-sheet', async (req, res) => {
   try {
     console.log('Request received');
     const data = await fetchData();
