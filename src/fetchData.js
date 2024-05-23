@@ -7,7 +7,7 @@ const API_TOKEN = process.env.API_TOKEN;
 async function fetchData() {
   const now = new Date();
   const answeredBefore = now.toISOString();
-  const answeredAfter = new Date(now.getTime() - 60000).toISOString(); // 1 minute earlier
+  const answeredAfter = new Date(now.getTime() - 600000).toISOString(); // 10 minutes earlier
 
   const apiUrl = `${API_BASE_URL}/results?Checklists=${API_CHECKLISTS}&AnsweredBefore=${encodeURIComponent(answeredBefore)}&AnsweredAfter=${encodeURIComponent(answeredAfter)}`;
 
