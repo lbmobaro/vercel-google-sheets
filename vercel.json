@@ -4,20 +4,12 @@
     {
       "src": "api/cron.js",
       "use": "@vercel/node"
-    },
-    {
-      "src": "src/**/*.js",
-      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
       "dest": "/api/cron.js"
-    },
-    {
-      "src": "/src/(.*)",
-      "dest": "/src/$1"
     }
   ],
   "crons": [
